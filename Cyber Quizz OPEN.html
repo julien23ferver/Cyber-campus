@@ -996,6 +996,18 @@ document.querySelectorAll('.role-card:not(.locked) .start-btn').forEach(btn => {
 </ul>
 <button aria-label="Consulter le glossaire" class="start-btn" onclick="showGlossary()"><i class="fas fa-book-open"></i> <span data-en="Browse" data-fr="Consulter">Consulter</span></button>
 </div>
+<!-- NOUVEAU: Classement -->
+<div class="role-card">
+<div class="card-icon" style="color: var(--success-green);"><i class="fas fa-trophy"></i></div>
+<h3 data-en="Leaderboard" data-fr="Classement">Classement</h3>
+<p data-en="Check the best scores and see who is the ultimate cyber hero." data-fr="Consultez les meilleurs scores et découvrez qui est le héros ultime de la cybersécurité.">Consultez les meilleurs scores et découvrez qui est le héros ultime de la cybersécurité.</p>
+<ul class="features">
+<li><i class="fas fa-check-circle"></i> <span data-en="Ranking by score" data-fr="Classement par score">Classement par score</span></li>
+<li><i class="fas fa-check-circle"></i> <span data-en="Scores by difficulty" data-fr="Scores par difficulté">Scores par difficulté</span></li>
+<li><i class="fas fa-check-circle"></i> <span data-en="Client-side saved" data-fr="Sauvegarde locale">Sauvegarde locale</span></li>
+</ul>
+<button aria-label="Voir le classement" class="start-btn" onclick="showLeaderboard()" style="background: linear-gradient(45deg, var(--accent-green), var(--success-green));"><i class="fas fa-list-ol"></i> <span data-en="View" data-fr="Voir">Voir</span></button>
+</div>
 <!-- 2. Mode Facile -->
 <div class="role-card user">
 <div class="card-icon"><i class="fas fa-graduation-cap"></i></div>
@@ -1181,6 +1193,23 @@ document.querySelectorAll('.role-card:not(.locked) .start-btn').forEach(btn => {
 </div>
 <ul class="glossary-list" id="glossaryList"></ul>
 </div>
+</div>
+
+<!-- NOUVEAU: Écran du Classement -->
+<div class="screen" id="leaderboardScreen">
+    <div class="results-container" style="text-align: left;">
+        <div class="game-header-controls" style="position: relative; margin-bottom: 20px; justify-content: flex-start;">
+            <button aria-label="Retour à l'accueil" class="home-btn" onclick="goHome()">
+                <i class="fas fa-home"></i> <span data-en="Home" data-fr="Accueil">Accueil</span>
+            </button>
+        </div>
+        <img alt="Logo Nouvelle-Aquitaine" src="logo_loc_lion-entier_fond-sombre (1).png" style="width: 180px; margin-bottom: 20px; display: block; margin-left: auto; margin-right: auto;">
+        <h2 class="results-title" data-en="Leaderboard" data-fr="Tableau des Scores" style="text-align: center;">Tableau des Scores</h2>
+
+        <div id="leaderboard-table-container" style="margin-top: 30px;">
+            <p style="text-align: center; color: var(--text-muted);">Aucun score enregistré pour le moment. Jouez une partie pour apparaître dans le classement !</p>
+        </div>
+    </div>
 </div>
 
 
@@ -2095,6 +2124,31 @@ document.querySelectorAll('.role-card:not(.locked) .start-btn').forEach(btn => {
         }
 
         // --- ENHANCED END GAME ---
+        function saveScore(score, totalQuestions, difficulty) {
+            const name = prompt("Félicitations ! Entrez votre nom pour le classement :", "Héro du Cyber");
+            if (name === null || name.trim() === "") {
+                return;
+            }
+
+            const percentage = Math.round((score / totalQuestions) * 100);
+            const newScore = {
+                name: name.trim(),
+                score: percentage,
+                difficulty: difficulty,
+                date: new Date().toLocaleDateString('fr-FR')
+            };
+
+            try {
+                const highScores = JSON.parse(localStorage.getItem('cyberQuizzHighScores')) || [];
+                highScores.push(newScore);
+                highScores.sort((a, b) => b.score - a.score);
+                highScores.splice(10);
+                localStorage.setItem('cyberQuizzHighScores', JSON.stringify(highScores));
+            } catch (e) {
+                console.error("Impossible de sauvegarder le score:", e);
+            }
+        }
+
         function endGame() {
             clearInterval(timerInterval);
             clearGameState();
@@ -2118,6 +2172,11 @@ document.querySelectorAll('.role-card:not(.locked) .start-btn').forEach(btn => {
                 difficulty: currentDifficulty,
                 themes: [...new Set(gameQuestions.map(q => q.term))]
             };
+
+            // Sauvegarder le score avant d'afficher les résultats
+            if (gameQuestions.length > 0 && currentDifficulty !== 'custom' && !isReviewSession) {
+                saveScore(score, gameQuestions.length, currentDifficulty);
+            }
 
             let message;
             if (currentDifficulty === 'nexus') {
@@ -2508,6 +2567,71 @@ document.querySelectorAll('.role-card:not(.locked) .start-btn').forEach(btn => {
                 osc.stop(audioCtx.currentTime + 0.2);
             } catch(e) {
                 console.warn("Could not play sound:", e);
+            }
+        }
+
+        function getDifficultyClass(difficulty) {
+            const difficultyMap = {
+                'facile': 'user',
+                'intermediaire': 'intermediate',
+                'difficile': 'professional',
+                'nexus': 'nexus'
+            };
+            return difficultyMap[difficulty] || '';
+        }
+
+        function showLeaderboard() {
+            const container = document.getElementById('leaderboard-table-container');
+            if (!container) return;
+
+            showScreen('leaderboardScreen');
+
+            try {
+                const highScores = JSON.parse(localStorage.getItem('cyberQuizzHighScores')) || [];
+
+                if (highScores.length === 0) {
+                    container.innerHTML = `<p style="text-align: center; color: var(--text-muted);">Aucun score enregistré pour le moment. Jouez une partie pour apparaître dans le classement !</p>`;
+                    return;
+                }
+
+                let tableHTML = `
+                    <table style="width: 100%; border-collapse: collapse; color: var(--text-primary);">
+                        <thead>
+                            <tr style="border-bottom: 2px solid var(--border-medium);">
+                                <th style="padding: 12px; text-align: left;">#</th>
+                                <th style="padding: 12px; text-align: left;">Nom</th>
+                                <th style="padding: 12px; text-align: left;">Score</th>
+                                <th style="padding: 12px; text-align: left;">Difficulté</th>
+                                <th style="padding: 12px; text-align: left;">Date</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+
+                highScores.forEach((score, index) => {
+                    const difficultyClass = getDifficultyClass(score.difficulty);
+                    const nameEscaped = score.name.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                    tableHTML += `
+                        <tr style="border-bottom: 1px solid var(--border-light);">
+                            <td style="padding: 12px; font-weight: bold;">${index + 1}</td>
+                            <td style="padding: 12px;">${nameEscaped}</td>
+                            <td style="padding: 12px; font-weight: bold; color: var(--success-green);">${score.score}%</td>
+                            <td style="padding: 12px;"><span class="${difficultyClass}" style="font-weight: bold; text-transform: capitalize;">${score.difficulty}</span></td>
+                            <td style="padding: 12px;">${score.date}</td>
+                        </tr>
+                    `;
+                });
+
+                tableHTML += `
+                        </tbody>
+                    </table>
+                `;
+
+                container.innerHTML = tableHTML;
+
+            } catch (e) {
+                console.error("Erreur lors de l'affichage du classement:", e);
+                container.innerHTML = `<p style="text-align: center; color: var(--error-red);">Erreur lors du chargement des scores.</p>`;
             }
         }
 
